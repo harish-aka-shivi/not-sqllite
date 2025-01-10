@@ -50,10 +50,10 @@ if (command === ".dbinfo") {
   // You can use print statements as follows for debugging, they'll be visible when running tests.
   // console.log("Logs from your program will appear here!");
   // const pageSize = databaseFile.readUInt16BE(16); // page size is 2 bytes starting at offset 16
-  console.log(`database page size: ${dbHeader.dbPageSize.toString('hex')}`);
+  console.log(`database page size: ${dbHeader.dbPageSize.readUInt16BE(0)}`);
 
   // Uncomment this to pass the first stage
-  console.log(`number of tables: ${sqliteSchemaRows.length}`);
+  // console.log(`number of tables: ${sqliteSchemaRows.length}`);
 } else {
   throw `Unknown command ${command}`;
 }
