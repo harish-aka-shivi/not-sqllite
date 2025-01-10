@@ -12,10 +12,13 @@ export default async function readRecord(databaseFile, numberOfValues) {
   }
 
   const recordValues = [];
-
+  console.log({
+    serialTypes
+  })
   for (const serialType of serialTypes) {
     recordValues.push(await readRecordValue(databaseFile, serialType));
   }
+
 
   return recordValues;
 }

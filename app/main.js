@@ -1,4 +1,5 @@
 import DatabaseFile from "./database-file.js";
+import readDbHeader from "./read-db-header.js";
 import readInt from "./read-int.js";
 import readPageHeader from "./read-page-header.js";
 import readRecord from "./read-record.js";
@@ -11,9 +12,13 @@ if (command === ".dbinfo") {
   const databaseFile = new DatabaseFile(databaseFilePath);
 
   await databaseFile.open();
-  await databaseFile.seek(100); // Skip database header
+  // await databaseFile.seek(100); // Skip database header
+
+  const dbHeader = await readDbHeader(databaseFile)
 
   const pageHeader = await readPageHeader(databaseFile);
+
+  // console.log({pageHeader, dbHeader})
 
   const cellPointers = [];
 
@@ -44,8 +49,8 @@ if (command === ".dbinfo") {
 
   // You can use print statements as follows for debugging, they'll be visible when running tests.
   // console.log("Logs from your program will appear here!");
-  const pageSize = buffer.readUInt16BE(16); // page size is 2 bytes starting at offset 16
-  console.log(`database page size: ${pageSize}`);
+  // const pageSize = databaseFile.readUInt16BE(16); // page size is 2 bytes starting at offset 16
+  console.log(`database page size: ${dbHeader.dbPageSize.toString('hex')}`);
 
   // Uncomment this to pass the first stage
   console.log(`number of tables: ${sqliteSchemaRows.length}`);
