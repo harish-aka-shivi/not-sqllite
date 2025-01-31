@@ -18,15 +18,29 @@ if (command === ".dbinfo") {
 
   const pageHeader = await readPageHeader(databaseFile);
 
-  // console.log({pageHeader, dbHeader})
+  // console.log({ dbHeader, pageHeader })
 
   const cellPointers = [];
 
-  for (let i = 0; i < pageHeader.numberOfCells; i++) {
+  // const numberOfCellsInt = pageHeader.numberOfCells.readUInt16BE(0);
+  const numberOfCellsInt = pageHeader.numberOfCells;
+
+  
+  // console.log({
+  //   numberOfCellsInt
+  // })
+
+  for (let i = 0; i < numberOfCellsInt; i++) {
+    // since the cell pointer each has offset of the cell content which is of 2 bytes
     cellPointers.push(await readInt(databaseFile, 2));
+    // const cellContentOffsetBuffer = await databaseFile.read(2)
+    // const cellContentOffset = cellContentOffsetBuffer.readUInt16BE(0)
+    // cellPointers.push(cellContentOffset)
   }
 
   const sqliteSchemaRows = [];
+
+  // console.log({ cellPointers})
 
   // Each of these cells represents a row in the sqlite_schema table.
   for (const cellPointer of cellPointers) {
@@ -47,13 +61,17 @@ if (command === ".dbinfo") {
     });
   }
 
+  // console.log({
+  //   sqliteSchemaRows
+  // })
+
   // You can use print statements as follows for debugging, they'll be visible when running tests.
   // console.log("Logs from your program will appear here!");
   // const pageSize = databaseFile.readUInt16BE(16); // page size is 2 bytes starting at offset 16
-  console.log(`database page size: ${dbHeader.dbPageSize.readUInt16BE(0)}`);
+  console.log(`database page size: ${dbHeader.dbPageSize}`);
 
   // Uncomment this to pass the first stage
-  // console.log(`number of tables: ${sqliteSchemaRows.length}`);
+  console.log(`number of tables: ${sqliteSchemaRows.length}`);
 } else {
   throw `Unknown command ${command}`;
 }
