@@ -22,8 +22,17 @@ export default async function readRecord(databaseFile, numberOfValues) {
     recordValues.push(await readRecordValue(databaseFile, serialType));
   }
 
+  
+  return {
+    recordHeader: {
+      bytesInHeader,
+      serialTypes
+    },
+    recordValues
+  }
+ 
 
-  return recordValues;
+  // return recordValues;
 }
 
 async function readRecordValue(databaseFile, serialType) {

@@ -57,6 +57,13 @@ async function readUsableBytes(databaseFile) {
     if (isFirstBitZero(byte)) {
       break;
     }
+
+    // If size is 8 and first byte is 1
+    // Read the ninth byte
+    if (i === 7) {
+      const lastBytes = await readInt(databaseFile, 1)
+      usableBytes.push(lastBytes)
+    }
   }
 
   return usableBytes;
