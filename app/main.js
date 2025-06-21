@@ -291,7 +291,7 @@ if (command === ".dbinfo") {
 
   logger.info(page)
 
-  // console.log(page.pageHeader.numberOfCells)
+  console.log(page.pageHeader.numberOfCells)
 
   // Seek to this position
   // await data
