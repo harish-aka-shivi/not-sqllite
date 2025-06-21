@@ -1,6 +1,7 @@
 import readInt from "./read-int.js";
 import readVarint from "./read-varint.js";
 import readDouble from "./read-double.js";
+import logger from "./logger.js";
 
 // Reads SQLite's "Record Format" as mentioned here: https://www.sqlite.org/fileformat.html#record_format
 export default async function readRecord(databaseFile, numberOfValues) {
@@ -22,6 +23,9 @@ export default async function readRecord(databaseFile, numberOfValues) {
     recordValues.push(await readRecordValue(databaseFile, serialType));
   }
 
+  // logger.info({recordValues, serialTypes, bytesInHeader, numberOfValues})
+
+
   
   return {
     recordHeader: {
@@ -40,7 +44,12 @@ async function readRecordValue(databaseFile, serialType) {
     // Text encoding
     const numberOfBytes = (serialType - 13) / 2;
     return (await databaseFile.read(numberOfBytes)).toString("utf-8");
-  } else if (serialType === 0) {
+  } 
+  else if (serialType >= 12 && serialType % 2 === 0) {
+    const numberOfBytes = (serialType - 12) / 2
+    return (await databaseFile.read(numberOfBytes)).toString('utf-8')
+  } 
+  else if (serialType === 0) {
     return null
   } else if (serialType === 1) {
     // 8-bit twos-complement integer
