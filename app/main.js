@@ -1,4 +1,5 @@
 import DatabaseFile from "./database-file.js";
+import getColumnNames from "./get-column-names.js";
 import logger from "./logger.js";
 import readDbHeader from "./read-db-header.js";
 import readInt from "./read-int.js";
@@ -79,9 +80,9 @@ class DBimpl {
 
   */
 
-  async #parsePage(numberOfColumns, pointerOffset) {
+  async #parsePage(columns, pointerOffset) {
     await this.#initializeDbFile();
-
+    const numberOfColumns = columns.length;
     const databaseFile = this.#databaseFile
 
     const pageFormat = {
@@ -142,13 +143,12 @@ class DBimpl {
 
       const {recordValues: record} = recordData
       // Table contains columns: type, name, tbl_name, rootpage, sql
-      const sqlSchemaRowFriendly = {
-        type: record[0],
-        name: record[1],
-        tbl_name: record[2],
-        rootpage: record[3],
-        sql: record[4],
-      }
+
+      const sqlSchemaRowFriendly = columns.reduce((acc, item, index) => {
+        acc[item] = record[index];
+        return acc
+      }, {}) ;
+
       sqliteSchemaRows.push(sqlSchemaRowFriendly);
 
       const cell = {
@@ -183,15 +183,15 @@ class DBimpl {
 
     // Read first 100 bytes
     const dbHeader = await readDbHeader(databaseFile)
-    const pageSize = dbHeader.dbPageSize
 
-    const page = await this.#parsePage(5, 0)
+    const schemaTableColumns = ['type', 'name', 'tbl_name', 'rootpage', 'sql']
+    // parse the rest of the page
+    const page = await this.#parsePage(schemaTableColumns, 0)
 
     const dbFirstPage = {
       dbHeader: dbHeader,
       ...page,
     }
-    // dbFirstPage.dbHeader = dbHeader
 
     this.#dbFirstPage = dbFirstPage
     return dbFirstPage;
@@ -215,33 +215,29 @@ class DBimpl {
 
     const sql = tableInfoRow.cellPayload.recordValuesFriendly.sql
 
-    // Flaky logic to calculate number of 
-    const splittedStr = sql.split(',');
-    const numberOfColumns = splittedStr.length
+    // Flaky logic to calculate number of columns in a table
+    // const splittedStr = sql.split(',');
+    // const numberOfColumns = splittedStr.length
+    const columns = getColumnNames(sql)
+    const numberOfColumns = columns.length;
+    logger.info({columns, numberOfColumns, sql})
 
     const pageSize = firstPage.dbHeader.dbPageSize;
 
     const offset = pageSize * (tableRootPage - 1)
 
-    const pageRootPointer = pageSize * tableRootPage;
-
-    // logger.info({
-    //   offset,
-    //   pageRootPointer
-    // })
-
     logger.info({
       tableRootPage,
       pageSize,
       sql,
-      pageRootPointer,
       tableName,
-      numberOfColumns
+      numberOfColumns,
+      columns,
     })
 
     await this.#databaseFile.seek(offset)
 
-    const page = await this.#parsePage(numberOfColumns, offset)
+    const page = await this.#parsePage(columns, offset)
 
     logger.info({
       page
@@ -276,7 +272,7 @@ if (command === ".dbinfo") {
     }
     return `${acc} ${tbl_name}`
   }, ''))
-} else if (command.toLowerCase().includes("select count(*) from")) {
+} else if (command.toLowerCase().includes("count(*)")) {
   
   const tokenizedArr = command.trim().split(' ');
   const tableName = tokenizedArr[tokenizedArr.length - 1];
@@ -297,7 +293,34 @@ if (command === ".dbinfo") {
   // await data
 
 
-} else {
+} else if (command.toLowerCase().includes('select')) {
+  const lowerCaseCommand = command.toLowerCase().trim()
+
+  const tokenizedArr = lowerCaseCommand.split('select')
+  const selectionStr = tokenizedArr[1];
+
+  const tokenizedOnFrom = selectionStr.split('from')
+  const columnsStr = tokenizedOnFrom[0].trim();
+  const table = tokenizedOnFrom[1].trim();
+
+  const columns = columnsStr.split(',').map(i => i.trim())
+
+
+  logger.info({table, columns})
+  const columnName = columns[0];
+
+  const dbImpl = DBimpl.getInstance()
+
+  const page = await dbImpl.getPage(table)
+
+  logger.info(page)
+  console.log(page.cells.map(cell => {
+    return cell.cellPayload.recordValuesFriendly[columnName]
+  }))
+
+}
+
+else {
   throw `Unknown command ${command}`;
 }
 
