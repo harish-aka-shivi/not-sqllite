@@ -305,30 +305,56 @@ if (command === ".dbinfo") {
 
   const columns = columnsStr.split(',').map(i => i.trim())
 
-  const columnName = columns[0];
+  // const columnName = columns[0];
 
   const dbImpl = DBimpl.getInstance()
 
   const page = await dbImpl.getPage(table)
 
   logger.info(page)
-  const columnNames = page.cells.map(cell => {
-    return cell.cellPayload.recordValuesFriendly[columnName]
-  })
+  // const columnNames = page.cells.map(cell => {
+  //   return cell.cellPayload.recordValuesFriendly[columnName]
+  // })
+
+  const columnNames = page.cells.reduce((acc,cell) => {
+    // cell.cellPayload.recordValuesFriendly[columnName]
+    acc.push(columns.map(col => cell.cellPayload.recordValuesFriendly[col]))
+    return acc
+  }, [])
 
   logger.info({
     table,
     columns,
     columnNames
   })
-  console.log(columnNames.reduce((acc, item, index) => {
-    acc = `${acc}${item}`
+
+  // const output = columnNames.reduce((acc, item, index) => {
+  //   acc = `${acc}${item}`
+  //   if (index < columnNames.length - 1) {
+  //     acc = `${acc}\n`
+  //   }
+  //   return acc
+  // }, '')
+
+  const output = columnNames.reduce((acc, columnsArr, index) => {
+    const rowStr = columnsArr.reduce((accInternal, itemInternal, indexInternal) => {
+      accInternal = `${accInternal}${itemInternal}`
+
+      if (indexInternal < columnsArr.length - 1) {
+        accInternal = `${accInternal}|`
+      }
+
+      return accInternal
+    },'')
+
+    acc = `${acc}${rowStr}`
     if (index < columnNames.length - 1) {
       acc = `${acc}\n`
     }
     return acc
-  }, ''))
+  }, '')
 
+  console.log(output)
 }
 
 else {
