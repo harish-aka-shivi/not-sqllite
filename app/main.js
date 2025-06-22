@@ -305,8 +305,6 @@ if (command === ".dbinfo") {
 
   const columns = columnsStr.split(',').map(i => i.trim())
 
-
-  logger.info({table, columns})
   const columnName = columns[0];
 
   const dbImpl = DBimpl.getInstance()
@@ -314,9 +312,22 @@ if (command === ".dbinfo") {
   const page = await dbImpl.getPage(table)
 
   logger.info(page)
-  console.log(page.cells.map(cell => {
+  const columnNames = page.cells.map(cell => {
     return cell.cellPayload.recordValuesFriendly[columnName]
-  }))
+  })
+
+  logger.info({
+    table,
+    columns,
+    columnNames
+  })
+  console.log(columnNames.reduce((acc, item, index) => {
+    acc = `${acc}${item}`
+    if (index < columnNames.length - 1) {
+      acc = `${acc}\n`
+    }
+    return acc
+  }, ''))
 
 }
 
