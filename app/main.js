@@ -300,8 +300,23 @@ if (command === ".dbinfo") {
   const selectionStr = tokenizedArr[1];
 
   const tokenizedOnFrom = selectionStr.split('from')
+  
   const columnsStr = tokenizedOnFrom[0].trim();
-  const table = tokenizedOnFrom[1].trim();
+  
+  const tokenizedOnWhere = tokenizedOnFrom[1].split('where')
+  
+  const table = tokenizedOnWhere[0].trim();
+
+  let whereColumnName = '';
+  let whereColumnValue = '';
+  if (tokenizedOnWhere.length > 1) {
+    const whereClauseStr = tokenizedOnWhere[1].trim();
+
+    const tokenizedOnEqual = whereClauseStr.split('=')
+
+    whereColumnName = tokenizedOnEqual?.[0]?.trim();
+    whereColumnValue = tokenizedOnEqual?.[1]?.trim().replaceAll('\'', '')
+  }
 
   const columns = columnsStr.split(',').map(i => i.trim())
 
@@ -316,25 +331,49 @@ if (command === ".dbinfo") {
   //   return cell.cellPayload.recordValuesFriendly[columnName]
   // })
 
-  const columnNames = page.cells.reduce((acc,cell) => {
-    // cell.cellPayload.recordValuesFriendly[columnName]
-    acc.push(columns.map(col => cell.cellPayload.recordValuesFriendly[col]))
+   logger.info({
+    table,
+    columns,
+    whereColumnName,
+    whereColumnValue,
+    tokenizedArr,
+    tokenizedOnFrom,
+    tokenizedOnWhere,
+    columnsStr,
+    command,
+  })
+
+
+  const columnNames = page.cells.reduce((acc,cell) => {  
+    const values = columns.reduce((acc, col) => {
+      const value = cell.cellPayload.recordValuesFriendly[col]
+      const obj = {
+        key: col,
+        value,
+      }
+      acc.push(obj)
+      return acc
+    }, [])
+
+    let toAdd = false;
+    for (const obj of values) {
+      if (!whereColumnName || !whereColumnValue) {
+        toAdd = true
+      }
+
+      if (obj.key.trim().toLowerCase() === whereColumnName.trim().toLowerCase() 
+        && obj.value.trim().toLowerCase() === whereColumnValue.trim().toLowerCase()) {
+        toAdd = true
+      }
+    }
+    
+    if (toAdd) {
+      acc.push(values.map(o => o.value))
+    }
     return acc
   }, [])
 
-  logger.info({
-    table,
-    columns,
-    columnNames
-  })
-
-  // const output = columnNames.reduce((acc, item, index) => {
-  //   acc = `${acc}${item}`
-  //   if (index < columnNames.length - 1) {
-  //     acc = `${acc}\n`
-  //   }
-  //   return acc
-  // }, '')
+ 
 
   const output = columnNames.reduce((acc, columnsArr, index) => {
     const rowStr = columnsArr.reduce((accInternal, itemInternal, indexInternal) => {
@@ -353,7 +392,8 @@ if (command === ".dbinfo") {
     }
     return acc
   }, '')
-
+  
+  logger.info({output})
   console.log(output)
 }
 
