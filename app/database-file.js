@@ -1,7 +1,9 @@
 import { Buffer } from "buffer";
 import { open } from "fs/promises";
 
-// A wrapper around fs.fileHandler that allows updating current position via seek().
+/* 
+ A wrapper around fs.fileHandler that allows updating current position via seek().
+*/
 export default class DatabaseFile {
   constructor(path) {
     this.path = path;

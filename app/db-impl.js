@@ -129,7 +129,11 @@ export default class DBimpl {
 
     logger.info({ cellPointers });
 
-    // Each of these cells represents a row in the sqlite_schema table.
+    /* 
+      After page headers, comes the list of cell pointers
+      We need to add the page pointer to this pointer to go to the actual pointer
+      Each of these cells represents a row in the sqlite_schema table.
+    */
     for (const cellPointer of cellPointers) {
       const cell = await readCell({
         databaseFile,
@@ -157,7 +161,9 @@ export default class DBimpl {
 
     const databaseFile = this.#databaseFile;
 
-    // Read first 100 bytes
+    /* 
+      Read first 100 bytes
+    */
     const dbHeader = await readDbHeader(databaseFile);
 
     const schemaTableColumns = ["type", "name", "tbl_name", "rootpage", "sql"];
@@ -228,13 +234,18 @@ export default class DBimpl {
     const pagesToTraverse = [];
     const dataCells = [];
 
-    // push the first row in the tree
+    /* 
+      push the root page number in the tree
+      We will keep on pushing the pages that are to be read in the btree
+    */
     pagesToTraverse.push(rootPageNumber);
 
     while (pagesToTraverse.length !== 0) {
       logger.info(`pages to traverse before starting while loop execution ${pagesToTraverse}`);
 
-      // get the first element from the pages to read
+      /* 
+        get the first element from the pages to read
+      */
       const pageNumber = pagesToTraverse[0];
       const pageOffset = pageSize * (pageNumber - 1);
 
@@ -245,9 +256,11 @@ export default class DBimpl {
         readDataFromMultiplePage: page,
       });
 
-      // IF page type is interior, we will all the children pages pointers and
-      // add them to the array
-      // If the page type is leaf, we will read all the cells and put data in a array
+      /* 
+        IF page type is interior, we will all the children pages pointers and
+        add them to the array
+        If the page type is leaf, we will read all the cells and put data in a array
+      */
       if (page.pageHeader.pageType === BTREE_PAGE_TYPES.INTERIOR_TABLE_PAGE_TYPE) {
         const pagesToRead = page.cells.map((cell) => cell.leftChildPointer);
         pagesToTraverse.push(...pagesToRead);
@@ -263,6 +276,7 @@ export default class DBimpl {
     return dataCells;
   }
 
+  /* TODO: delete  */
   async getPage(tableName) {
     await this.#initializeDbFile();
     const firstPage = await this.getDBFirstPage();

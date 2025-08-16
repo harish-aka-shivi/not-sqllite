@@ -7,12 +7,9 @@ const command = process.argv[3];
 if (command === ".dbinfo") {
   const dbImpl = DBimpl.getInstance(databaseFilePath);
   const dbFirstPage = await dbImpl.getDBFirstPage();
-  // You can use print statements as follows for debugging, they'll be visible when running tests.
-  // console.log("Logs from your program will appear here!");
-  // const pageSize = databaseFile.readUInt16BE(16); // page size is 2 bytes starting at offset 16
+
   console.log(`database page size: ${dbFirstPage.dbHeader.dbPageSize}`);
 
-  // Uncomment this to pass the first stage
   console.log(`number of tables: ${dbFirstPage.cellPointers.length}`);
 } else if (command === ".tables") {
   const dbImpl = DBimpl.getInstance(databaseFilePath);
@@ -78,13 +75,13 @@ if (command === ".dbinfo") {
 
   const columns = columnsStr.split(",").map((i) => i.trim());
 
-  // const columnName = columns[0];
-
   const dbImpl = DBimpl.getInstance(databaseFilePath);
 
-  // Get the page based on table name
-  // This will go to the schema table which stores the
-  // the root pages of all the tables in the DB
+  /* 
+    Get the page based on table name
+    This will go to the schema table which stores the
+    the root pages of all the tables in the DB
+  */
   const tableDataCells = await dbImpl.readTable(table);
 
   logger.info({
@@ -103,12 +100,12 @@ if (command === ".dbinfo") {
   // Get all the table rows
   const tableRows = tableDataCells.map((cellData) => cellData.cellPayload.recordValuesFriendly);
 
-  // logger.info({tableRows})
-
   let filteredRows = tableRows;
 
-  // If there is a where clause
-  // filter that data based on these values
+  /* 
+    If there is a where clause
+    filter that data based on these values
+  */
   if (whereColumnName && whereColumnValue) {
     filteredRows = tableRows.filter((row) => {
       const rowValue = row[whereColumnName.trim()];
@@ -121,8 +118,13 @@ if (command === ".dbinfo") {
     });
   }
 
-  // Select the columns that are requested
-  // If the user has passed '*', that means return all the columns values
+  /* 
+    Select the columns that are requested
+    If the user has passed '*', that means return all the columns values
+
+    return [[row1_column1_value, row1_column2_value], [row2_column1_value, row2_column2_value]]
+
+  */
   const filteredRowsWithRequiredColumnsValues = filteredRows.reduce((acc, row) => {
     const requiredColumnsValues = [];
 
@@ -137,50 +139,12 @@ if (command === ".dbinfo") {
     return acc;
   }, []);
 
-  // logger.info({
-  //   filteredRows,
-  //   filteredRowsWithRequiredColumnsValues
-  // })
+  /* 
+    Concats the values like below
 
-  // const columnNames = tableDataCells.reduce((acc, cell) => {
-  //   const values = columns.reduce((acc, col) => {
-  //     const value = cell.cellPayload.recordValuesFriendly[col];
-  //     const obj = {
-  //       key: col,
-  //       value,
-  //     };
-  //     acc.push(obj);
-  //     return acc;
-  //   }, []);
-
-  //   logger.info('values are')
-  //   logger.info({
-  //     values
-  //   })
-  //   let toAdd = false;
-  //   for (const obj of values) {
-  //     if (!whereColumnName || !whereColumnValue) {
-  //       toAdd = true;
-  //     }
-
-  //     if (
-  //       obj.key.trim().toLowerCase() === whereColumnName.trim().toLowerCase() &&
-  //       obj.value.trim().toLowerCase() === whereColumnValue.trim().toLowerCase()
-  //     ) {
-  //       toAdd = true;
-  //     }
-  //   }
-
-  //   if (toAdd) {
-  //     acc.push(values.map((o) => o.value));
-  //   }
-  //   return acc;
-  // }, []);
-
-  // logger.info({
-  //   columnNames
-  // })
-
+    row1_column1_value | row1_column2_value
+    row2_column1_value | row2_column2_value
+  */
   const output = filteredRowsWithRequiredColumnsValues.reduce((acc, columnsArr, index) => {
     const rowStr = columnsArr.reduce((accInternal, itemInternal, indexInternal) => {
       accInternal = `${accInternal}${itemInternal}`;

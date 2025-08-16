@@ -1,5 +1,7 @@
-//"CREATE TABLE apples\n(\n\tid integer primary key autoincrement,\n\tname text,\n\tcolor text\n)"
-// Flaky logic to calculate number of columns in a table
+/* 
+  "CREATE TABLE apples\n(\n\tid integer primary key autoincrement,\n\tname text,\n\tcolor text\n)"
+  Flaky logic to calculate number of columns in a table
+*/
 const getColumnNames = (createTableSqlStatement) => {
   const sql = createTableSqlStatement.trim();
 
