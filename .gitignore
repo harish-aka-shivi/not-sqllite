@@ -3,3 +3,5 @@ rough-work.js
 a.txt
 *.lock
 node_modules
+*.log
+.vscode
