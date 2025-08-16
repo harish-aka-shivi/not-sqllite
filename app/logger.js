@@ -4,7 +4,7 @@ const logger = pino({
   transport: {
     target: 'pino-pretty'
   }, 
-  enabled: false
+  enabled: true,
 })
 
 export default logger
