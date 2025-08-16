@@ -14,29 +14,23 @@ export default async function readRecord(databaseFile, numberOfValues) {
   }
 
   const recordValues = [];
-  // console.log({
-  //   serialTypes,
-  //   bytesInHeader
-  // })
 
   for (const serialType of serialTypes) {
     recordValues.push(await readRecordValue(databaseFile, serialType));
   }
 
-  // logger.info({recordValues, serialTypes, bytesInHeader, numberOfValues})
-
-
-  
-  return {
+  const recordData = {
     recordHeader: {
       bytesInHeader,
-      serialTypes
+      serialTypes,
     },
-    recordValues
-  }
- 
+    recordValues,
+  };
 
-  // return recordValues;
+  logger.info("read record successful");
+  logger.info(recordData);
+
+  return recordData;
 }
 
 async function readRecordValue(databaseFile, serialType) {
@@ -44,13 +38,11 @@ async function readRecordValue(databaseFile, serialType) {
     // Text encoding
     const numberOfBytes = (serialType - 13) / 2;
     return (await databaseFile.read(numberOfBytes)).toString("utf-8");
-  } 
-  else if (serialType >= 12 && serialType % 2 === 0) {
-    const numberOfBytes = (serialType - 12) / 2
-    return (await databaseFile.read(numberOfBytes)).toString('utf-8')
-  } 
-  else if (serialType === 0) {
-    return null
+  } else if (serialType >= 12 && serialType % 2 === 0) {
+    const numberOfBytes = (serialType - 12) / 2;
+    return (await databaseFile.read(numberOfBytes)).toString("utf-8");
+  } else if (serialType === 0) {
+    return null;
   } else if (serialType === 1) {
     // 8-bit twos-complement integer
     return await readInt(databaseFile, 1);
@@ -74,10 +66,12 @@ async function readRecordValue(databaseFile, serialType) {
     return await readDouble(databaseFile);
   } else if (serialType === 8) {
     // value is 0
-    return 0
+    return 0;
   } else if (serialType === 9) {
     // value is 1
-    return 1
+    return 1;
+  } else if (serialType === 10 || serialType === 11) {
+    return null;
   } else {
     throw `Unhandled serialType: ${serialType}`;
   }

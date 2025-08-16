@@ -5,8 +5,8 @@ const databaseFilePath = process.argv[2];
 const command = process.argv[3];
 
 if (command === ".dbinfo") {
-  const dbImpl = DBimpl.getInstance(databaseFilePath)
-  const dbFirstPage = await dbImpl.getDBFirstPage()
+  const dbImpl = DBimpl.getInstance(databaseFilePath);
+  const dbFirstPage = await dbImpl.getDBFirstPage();
   // You can use print statements as follows for debugging, they'll be visible when running tests.
   // console.log("Logs from your program will appear here!");
   // const pageSize = databaseFile.readUInt16BE(16); // page size is 2 bytes starting at offset 16
@@ -14,92 +14,80 @@ if (command === ".dbinfo") {
 
   // Uncomment this to pass the first stage
   console.log(`number of tables: ${dbFirstPage.cellPointers.length}`);
+} else if (command === ".tables") {
+  const dbImpl = DBimpl.getInstance(databaseFilePath);
+  const dbFirstPage = await dbImpl.getDBFirstPage();
 
-} else if (command === '.tables') {
-  const dbImpl = DBimpl.getInstance(databaseFilePath)
-  const dbFirstPage = await dbImpl.getDBFirstPage()
+  logger.info(dbFirstPage);
 
-  logger.info(dbFirstPage)
-
-  console.log(dbFirstPage.cells.reduce((acc, cell, index) => {
-    const tbl_name = cell.cellPayload.recordValuesFriendly.tbl_name
-    if (index === 0) {
-      return tbl_name
-    }
-    return `${acc} ${tbl_name}`
-  }, ''))
+  console.log(
+    dbFirstPage.cells.reduce((acc, cell, index) => {
+      const tbl_name = cell.cellPayload.recordValuesFriendly.tbl_name;
+      if (index === 0) {
+        return tbl_name;
+      }
+      return `${acc} ${tbl_name}`;
+    }, ""),
+  );
 } else if (command.toLowerCase().includes("count(*)")) {
-  
-  const tokenizedArr = command.trim().split(' ');
+  const tokenizedArr = command.trim().split(" ");
   const tableName = tokenizedArr[tokenizedArr.length - 1];
 
-  // console.log({
-  //   tokenizedArr,
-  //   tableName
-  // })
+  const dbImpl = DBimpl.getInstance(databaseFilePath);
+  const page = await dbImpl.getPage(tableName);
 
-  const dbImpl = DBimpl.getInstance(databaseFilePath)
-  const page = await dbImpl.getPage(tableName)
+  logger.info(page);
 
-  logger.info(page)
-
-  console.log(page.pageHeader.numberOfCells)
+  console.log(page.pageHeader.numberOfCells);
 
   // Seek to this position
   // await data
-
-
-} else if (command.toLowerCase().includes('select')) {
+} else if (command.toLowerCase().includes("select")) {
   // turn to lower case
-  const lowerCaseCommand = command.toLowerCase().trim()
+  const lowerCaseCommand = command.toLowerCase().trim();
 
   // Tokenize on select
-  const tokenizedArr = lowerCaseCommand.split('select')
+  const tokenizedArr = lowerCaseCommand.split("select");
 
   // get the string after select
   const selectionStr = tokenizedArr[1];
 
   // further split on 'from'
-  const tokenizedOnFrom = selectionStr.split('from')
-  
+  const tokenizedOnFrom = selectionStr.split("from");
+
   // Get the values between Select and From
   // Should be columns generally
   const columnsStr = tokenizedOnFrom[0].trim();
-  
+
   // Get the values after where
-  const tokenizedOnWhere = tokenizedOnFrom[1].split('where')
-  
+  const tokenizedOnWhere = tokenizedOnFrom[1].split("where");
+
   // Get the values between From and Where
   const table = tokenizedOnWhere[0].trim();
 
-  let whereColumnName = '';
-  let whereColumnValue = '';
+  let whereColumnName = "";
+  let whereColumnValue = "";
   if (tokenizedOnWhere.length > 1) {
     const whereClauseStr = tokenizedOnWhere[1].trim();
 
-    const tokenizedOnEqual = whereClauseStr.split('=')
+    const tokenizedOnEqual = whereClauseStr.split("=");
 
     whereColumnName = tokenizedOnEqual?.[0]?.trim();
-    whereColumnValue = tokenizedOnEqual?.[1]?.trim().replaceAll('\'', '')
+    whereColumnValue = tokenizedOnEqual?.[1]?.trim().replaceAll("'", "");
   }
 
-  const columns = columnsStr.split(',').map(i => i.trim())
+  const columns = columnsStr.split(",").map((i) => i.trim());
 
   // const columnName = columns[0];
 
-  const dbImpl = DBimpl.getInstance(databaseFilePath)
+  const dbImpl = DBimpl.getInstance(databaseFilePath);
 
-  // get the page based on table name
-  // This will go to the schema table which stores the 
- // the root pages of all the tables in the DB
-  
- 
-  // const page = await dbImpl.getPage(table)
-  // logger.info(page)
+  // Get the page based on table name
+  // This will go to the schema table which stores the
+  // the root pages of all the tables in the DB
+  const tableDataCells = await dbImpl.readTable(table);
 
-  const tableDataCells = await dbImpl.readTable(table)
-
-   logger.info({
+  logger.info({
     table,
     columns,
     whereColumnName,
@@ -109,65 +97,110 @@ if (command === ".dbinfo") {
     tokenizedOnWhere,
     columnsStr,
     command,
-    tableDataCells
-  })
+    tableDataCells,
+  });
 
+  // Get all the table rows
+  const tableRows = tableDataCells.map((cellData) => cellData.cellPayload.recordValuesFriendly);
 
+  // logger.info({tableRows})
 
-  const columnNames = tableDataCells.reduce((acc,cell) => {  
-    const values = columns.reduce((acc, col) => {
-      const value = cell.cellPayload.recordValuesFriendly[col]
-      const obj = {
-        key: col,
-        value,
+  let filteredRows = tableRows;
+
+  // If there is a where clause
+  // filter that data based on these values
+  if (whereColumnName && whereColumnValue) {
+    filteredRows = tableRows.filter((row) => {
+      const rowValue = row[whereColumnName.trim()];
+      if (rowValue) {
+        if (rowValue.trim().toLowerCase() === whereColumnValue.trim().toLowerCase()) {
+          return true;
+        }
       }
-      acc.push(obj)
-      return acc
-    }, [])
+      return false;
+    });
+  }
 
-    let toAdd = false;
-    for (const obj of values) {
-      if (!whereColumnName || !whereColumnValue) {
-        toAdd = true
+  // Select the columns that are requested
+  // If the user has passed '*', that means return all the columns values
+  const filteredRowsWithRequiredColumnsValues = filteredRows.reduce((acc, row) => {
+    const requiredColumnsValues = [];
+
+    columns.forEach((col) => {
+      if (col.trim() === "*") {
+        requiredColumnsValues.push(...Object.values(row));
+      } else {
+        requiredColumnsValues.push(row[col]);
       }
+    });
+    acc.push(requiredColumnsValues);
+    return acc;
+  }, []);
 
-      if (obj.key.trim().toLowerCase() === whereColumnName.trim().toLowerCase() 
-        && obj.value.trim().toLowerCase() === whereColumnValue.trim().toLowerCase()) {
-        toAdd = true
-      }
-    }
-    
-    if (toAdd) {
-      acc.push(values.map(o => o.value))
-    }
-    return acc
-  }, [])
+  // logger.info({
+  //   filteredRows,
+  //   filteredRowsWithRequiredColumnsValues
+  // })
 
- 
+  // const columnNames = tableDataCells.reduce((acc, cell) => {
+  //   const values = columns.reduce((acc, col) => {
+  //     const value = cell.cellPayload.recordValuesFriendly[col];
+  //     const obj = {
+  //       key: col,
+  //       value,
+  //     };
+  //     acc.push(obj);
+  //     return acc;
+  //   }, []);
 
-  const output = columnNames.reduce((acc, columnsArr, index) => {
+  //   logger.info('values are')
+  //   logger.info({
+  //     values
+  //   })
+  //   let toAdd = false;
+  //   for (const obj of values) {
+  //     if (!whereColumnName || !whereColumnValue) {
+  //       toAdd = true;
+  //     }
+
+  //     if (
+  //       obj.key.trim().toLowerCase() === whereColumnName.trim().toLowerCase() &&
+  //       obj.value.trim().toLowerCase() === whereColumnValue.trim().toLowerCase()
+  //     ) {
+  //       toAdd = true;
+  //     }
+  //   }
+
+  //   if (toAdd) {
+  //     acc.push(values.map((o) => o.value));
+  //   }
+  //   return acc;
+  // }, []);
+
+  // logger.info({
+  //   columnNames
+  // })
+
+  const output = filteredRowsWithRequiredColumnsValues.reduce((acc, columnsArr, index) => {
     const rowStr = columnsArr.reduce((accInternal, itemInternal, indexInternal) => {
-      accInternal = `${accInternal}${itemInternal}`
+      accInternal = `${accInternal}${itemInternal}`;
 
       if (indexInternal < columnsArr.length - 1) {
-        accInternal = `${accInternal}|`
+        accInternal = `${accInternal}|`;
       }
 
-      return accInternal
-    },'')
+      return accInternal;
+    }, "");
 
-    acc = `${acc}${rowStr}`
-    if (index < columnNames.length - 1) {
-      acc = `${acc}\n`
+    acc = `${acc}${rowStr}`;
+    if (index < filteredRowsWithRequiredColumnsValues.length - 1) {
+      acc = `${acc}\n`;
     }
-    return acc
-  }, '')
-  
-  logger.info({output})
-  console.log(output)
-}
+    return acc;
+  }, "");
 
-else {
+  logger.info({ output });
+  console.log(output);
+} else {
   throw `Unknown command ${command}`;
 }
-
