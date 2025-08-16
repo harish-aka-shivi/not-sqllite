@@ -5,9 +5,7 @@ const LAST_SEVEN_BITS_MASK = 0b01111111;
 
 // Reads SQLite's "varint" (short for variable-length integer) as mentioned here: https://www.sqlite.org/fileformat2.html#varint
 export default async function readVarint(databaseFile) {
-
   const usableBytes = await readUsableBytes(databaseFile);
-
 
   let value = 0;
 
@@ -17,7 +15,6 @@ export default async function readVarint(databaseFile) {
     const valueBeforeSum = value;
     let shifted = valueBeforeSum << usableSize;
     value = shifted + usableValue(usableSize, usableByte);
-
   });
 
   // console.log('read varint end', {value})
@@ -36,7 +33,7 @@ async function readUsableBytes(databaseFile) {
 
   for (let i = 0; i < 8; i++) {
     const byte = await readInt(databaseFile, 1);
-   
+
     usableBytes.push(byte);
 
     if (isFirstBitZero(byte)) {

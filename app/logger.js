@@ -10,7 +10,7 @@
 // // Mock logger
 
 let logger = {
-  info: () => {}
-}
+  info: () => {},
+};
 
 export default logger;

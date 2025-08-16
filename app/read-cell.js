@@ -45,8 +45,8 @@ export default async function readCell({
     };
 
     logger.info({
-      cell
-    })
+      cell,
+    });
 
     return cell;
   } else {
@@ -72,8 +72,8 @@ export default async function readCell({
         It does not store that in the payload but separately as row_id
         Handling this special case. Its little flaky because it will break if 
       */
-      if (columnName.toLowerCase() === 'id') {
-        acc[columnName] = rowID
+      if (columnName.toLowerCase() === "id") {
+        acc[columnName] = rowID;
       } else {
         acc[columnName] = record[index];
       }

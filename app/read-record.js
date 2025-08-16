@@ -28,7 +28,7 @@ export default async function readRecord(databaseFile, numberOfValues) {
   };
 
   logger.info("read record successful");
-  logger.info({recordData, numberOfValues});
+  logger.info({ recordData, numberOfValues });
 
   return recordData;
 }
