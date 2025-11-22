@@ -19,11 +19,11 @@ if (command === ".dbinfo") {
 
   console.log(
     dbFirstPage.cells.reduce((acc, cell, index) => {
-      const tbl_name = cell.cellPayload.recordValuesFriendly.tbl_name;
+      const tableName = cell.cellPayload.recordValuesFriendly.name;
       if (index === 0) {
-        return tbl_name;
+        return tableName;
       }
-      return `${acc} ${tbl_name}`;
+      return `${acc} ${tableName}`;
     }, ""),
   );
 } else if (command.toLowerCase().includes("count(*)")) {
@@ -31,14 +31,11 @@ if (command === ".dbinfo") {
   const tableName = tokenizedArr[tokenizedArr.length - 1];
 
   const dbImpl = DBimpl.getInstance(databaseFilePath);
-  const page = await dbImpl.getPage(tableName);
+  const page = await dbImpl.readTable(tableName);
 
   logger.info(page);
 
   console.log(page.pageHeader.numberOfCells);
-
-  // Seek to this position
-  // await data
 } else if (command.toLowerCase().includes("select")) {
   // turn to lower case
   const lowerCaseCommand = command.toLowerCase().trim();
@@ -77,10 +74,29 @@ if (command === ".dbinfo") {
 
   const dbImpl = DBimpl.getInstance(databaseFilePath);
 
+  const indexInfo = await dbImpl.getIndexRootPage(table, whereColumnName)
+
+
+  if(indexInfo) {
+    // read data using index
+    const { indexedColumnName, rootPage } = indexInfo
+
+    logger.info({
+      indexInfo
+    })
+    
+    const data = await dbImpl.readDataUsingIndex({rootPageNumber: rootPage, whereColumnName: indexedColumnName, 
+      whereColumnValue})
+    
+    
+    return;
+  }
+
   /* 
     Get the page based on table name
     This will go to the schema table which stores the
-    the root pages of all the tables in the DB
+    the root pages of all the tables in the DB.
+    This fetches all the pages and read the db
   */
   const tableDataCells = await dbImpl.readTable(table);
 

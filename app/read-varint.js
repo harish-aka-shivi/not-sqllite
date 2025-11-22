@@ -17,7 +17,6 @@ export default async function readVarint(databaseFile) {
     value = shifted + usableValue(usableSize, usableByte);
   });
 
-  // console.log('read varint end', {value})
 
   return value;
 }

@@ -18,7 +18,10 @@ export default async function readPageHeader(databaseFile) {
     Leaf Table page = 13
   */
   let rightMostPointer;
-  if (pageType === BTREE_PAGE_TYPES.INTERIOR_TABLE_PAGE_TYPE) {
+  if (
+    pageType === BTREE_PAGE_TYPES.INTERIOR_TABLE_PAGE_TYPE ||
+    pageType === BTREE_PAGE_TYPES.INTERIOR_INDEX_PAGE_TYPE
+  ) {
     rightMostPointer = await readInt(databaseFile, 4);
   }
 

@@ -2,15 +2,20 @@ import readInt from "./read-int.js";
 import readVarint from "./read-varint.js";
 import readDouble from "./read-double.js";
 import logger from "./logger.js";
+import { BTREE_PAGE_TYPES } from "./constants.js";
 
 // Reads SQLite's "Record Format" as mentioned here: https://www.sqlite.org/fileformat.html#record_format
-export default async function readRecord(databaseFile, numberOfValues) {
+export default async function readRecord(databaseFile) {
+  const headerStartPosition = databaseFile.getCurrentPosition()
+
   const bytesInHeader = await readVarint(databaseFile); // number of bytes in header
 
-  const serialTypes = [];
+  const headerEndPosition = headerStartPosition + bytesInHeader
 
-  for (let i = 0; i < numberOfValues; i++) {
-    serialTypes.push(await readVarint(databaseFile));
+  const serialTypes = [];
+  
+  while (databaseFile.getCurrentPosition() < headerEndPosition) {
+    serialTypes.push(await readVarint(databaseFile))
   }
 
   const recordValues = [];
@@ -27,11 +32,12 @@ export default async function readRecord(databaseFile, numberOfValues) {
     recordValues,
   };
 
-  logger.info("read record successful");
-  logger.info({ recordData, numberOfValues });
+  // logger.info("read record successful");
+  // logger.info({ recordData });
 
   return recordData;
 }
+
 
 async function readRecordValue(databaseFile, serialType) {
   if (serialType >= 13 && serialType % 2 === 1) {
@@ -71,6 +77,8 @@ async function readRecordValue(databaseFile, serialType) {
     // value is 1
     return 1;
   } else if (serialType === 10 || serialType === 11) {
+    // It's highly unlikely that this will be used
+    // 
     return null;
   } else {
     throw `Unhandled serialType: ${serialType}`;

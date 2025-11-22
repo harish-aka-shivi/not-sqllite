@@ -29,4 +29,8 @@ export default class DatabaseFile {
   async seek(position) {
     this.currentPosition = position;
   }
+
+  getCurrentPosition() {
+    return this.currentPosition;
+  }
 }

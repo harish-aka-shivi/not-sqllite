@@ -1,6 +1,7 @@
-import { BTREE_PAGE_TYPES } from "./constants.js";
+import { BTREE_PAGE_TYPES, getPageTypeFriendly, SCHEMA_TABLE_COLUMNS, SCHEMA_TYPE } from "./constants.js";
 import DatabaseFile from "./database-file.js";
 import getColumnNames from "./get-column-names.js";
+import getColumnNameFromIndex from "./get-indexed-column-name.js";
 import logger from "./logger.js";
 import readCell from "./read-cell.js";
 import readDbHeader from "./read-db-header.js";
@@ -9,12 +10,8 @@ import readPageHeader from "./read-page-header.js";
 
 /**
  * TYPES
- * 
- * 
- * 
- *
-    cell type
-  {
+
+  cell type = {
           cellPointer: null,
           cellHeader: {
             numOfBytesInPayload: null,
@@ -31,7 +28,7 @@ import readPageHeader from "./read-page-header.js";
         }
 
 
-          #dbFirstPage = {
+  #dbFirstPage = {
       dbHeader: {},
       pageHeader: {},
       cellPointers: [],
@@ -103,6 +100,11 @@ export default class DBimpl {
   }
 
   async #parsePage(columns, pointerOffset) {
+    logger.info({
+      key: 'Parsing page',
+      columns,
+      pointerOffset
+    })
     await this.#initializeDbFile();
     const numberOfColumns = columns.length;
     const databaseFile = this.#databaseFile;
@@ -116,7 +118,7 @@ export default class DBimpl {
     // Page header
     const pageHeader = await readPageHeader(databaseFile);
 
-    logger.info({ pageHeader, numberOfColumns, pointerOffset });
+    // logger.info({ pageHeader, numberOfColumns, pointerOffset });
 
     const cellPointers = [];
 
@@ -127,7 +129,7 @@ export default class DBimpl {
       cellPointers.push(await readInt(databaseFile, 2));
     }
 
-    logger.info({ cellPointers });
+    // logger.info({ cellPointers });
 
     /* 
       After page headers, comes the list of cell pointers
@@ -166,9 +168,8 @@ export default class DBimpl {
     */
     const dbHeader = await readDbHeader(databaseFile);
 
-    const schemaTableColumns = ["type", "name", "tbl_name", "rootpage", "sql"];
     // parse the rest of the page
-    const page = await this.#parsePage(schemaTableColumns, 0);
+    const page = await this.#parsePage(SCHEMA_TABLE_COLUMNS, 0);
 
     const dbFirstPage = {
       dbHeader: dbHeader,
@@ -183,15 +184,16 @@ export default class DBimpl {
     This method will find the root table pointer from the schema table
     It will further read the full table by querying data even in multiple pages
 
-    NOTE: It assumes schema table will be in 1 page
+    NOTE: It assumes schema table will be in 1 page. If the schema table is more that 1 page,
+    this might break
   */
   async readTable(tableName) {
     await this.#initializeDbFile();
     const firstPage = await this.getDBFirstPage();
-    logger.info({ firstPage, tableName });
+    // logger.info({ firstPage, tableName });
 
-    const tableInfoRow = firstPage.cells.find((cell) => cell.cellPayload.recordValuesFriendly.tbl_name === tableName);
-    logger.info({ tableInfoRow });
+    const tableInfoRow = firstPage.cells.find((cell) => cell.cellPayload.recordValuesFriendly.name === tableName);
+    // logger.info({ tableInfoRow });
 
     // if no table is found
     if (!tableInfoRow) {
@@ -201,29 +203,186 @@ export default class DBimpl {
     const tableRootPage = tableInfoRow.cellPayload.recordValuesFriendly.rootpage;
     const sql = tableInfoRow.cellPayload.recordValuesFriendly.sql;
 
-    // Flaky logic to calculate number of columns in a table
-    // const splittedStr = sql.split(',');
-    // const numberOfColumns = splittedStr.length
+    /* 
+      Flaky logic to calculate number of columns in a table
+      const splittedStr = sql.split(',');
+      const numberOfColumns = splittedStr.length
+    */
     const columns = getColumnNames(sql);
     const numberOfColumns = columns.length;
-    logger.info({ columns, numberOfColumns, sql });
+    // logger.info({ columns, numberOfColumns, sql });
 
     const pageSize = firstPage.dbHeader.dbPageSize;
 
-    logger.info({
-      tableRootPage,
-      pageSize,
-      sql,
-      tableName,
-      numberOfColumns,
-      columns,
-    });
+    // logger.info({
+    //   tableRootPage,
+    //   pageSize,
+    //   sql,
+    //   tableName,
+    //   numberOfColumns,
+    //   columns,
+    // });
+
+    // check if index is present, we don't need to read from the multiple pages
+    // we can bypass all the force of all the pages that we implemented earlier
+    // instead we can use the index to find the relevant value
 
     const dataCells = await this.readDataFromMultiplePages(tableRootPage, columns, pageSize);
-    logger.info({
-      dataCells,
-    });
+    // logger.info({
+    //   dataCells,
+    // });
     return dataCells;
+  }
+
+  async getIndexRootPage(tableName, whereColumnName) {
+    if (!whereColumnName) {
+      return null
+    }
+
+    if (!tableName) {
+      return null
+    }
+
+    await this.#initializeDbFile();
+    const firstPage = await this.getDBFirstPage();
+    // logger.info({ firstPage, tableName });
+
+    const indexInfoRow = firstPage.cells.find((cell) => {
+      const schemaTableName = cell.cellPayload.recordValuesFriendly.tbl_name;
+      const schemaType = cell.cellPayload.recordValuesFriendly.type;
+      return schemaTableName === tableName && schemaType === SCHEMA_TYPE.INDEX;
+    });
+
+    // logger.info({
+    //   indexInfoRow,
+    // })
+
+    if (indexInfoRow) {
+      // if the index exist for this table
+      // get the column name
+      const sql = indexInfoRow.cellPayload.recordValuesFriendly.sql
+      const indexedColumnName = getColumnNameFromIndex(sql);
+      const rootPage = indexInfoRow.cellPayload.recordValuesFriendly.rootpage
+
+      if (whereColumnName.trim().toLowerCase() != indexedColumnName.trim().toLowerCase()) {
+        return null
+      }
+
+      // logger.info({
+      //   indexedColumnName,
+      //   rootPage
+      // })
+      return {
+        indexedColumnName,
+        rootPage
+      }
+    }
+
+    return null
+  }
+
+  async readDataUsingIndex({rootPageNumber, whereColumnName, whereColumnValue}) {
+    logger.info({
+      rootPageNumber,
+      whereColumnName,
+      whereColumnValue
+    })
+    await this.#initializeDbFile();
+    const firstPage = await this.getDBFirstPage();
+    
+    const pageSize = firstPage.dbHeader.dbPageSize;
+
+    const columns = [whereColumnName]
+
+
+    // logger.info({
+    //   key: 'index page read successfull',
+    //   rootPage
+    // })
+
+    // let rowIdInDataTable = null
+    let rowIdsInDataTable = [];
+    let pageToOperateNumber = rootPageNumber
+    let isLeafPageReached = false;
+    const pagesToTraverse = []
+    pagesToTraverse.push(rootPageNumber);
+    while (pagesToTraverse.length > 0) {
+      const topPage = pagesToTraverse.pop();
+      const pageOffset = pageSize * (topPage - 1);
+      // Get the page number from the index
+      await this.#databaseFile.seek(pageOffset);
+      let pageToOperate = await this.#parsePage(columns, pageOffset)
+      logger.info({
+        key: 'In the while loop',
+        pageToOperateNumber,
+        rowIdsInDataTable,
+        pageToOperate,
+        whereColumnValue,
+        pagesToTraverse,
+        pageType: getPageTypeFriendly(pageToOperate.pageHeader.pageType)
+      })
+      const pageType = pageToOperate.pageHeader.pageType;
+      
+      // If page is interior page
+      if (pageType === BTREE_PAGE_TYPES.INTERIOR_INDEX_PAGE_TYPE) {
+        // get the cells
+        const cells = pageToOperate.cells;
+        
+        let i = 0
+        while (i < cells.length) {
+          const cell = cells[i]
+          const cellValue = cell.cellPayload.recordValuesFriendly[whereColumnName]
+          logger.info({key: 'interior page', cellValue, i, length: cells.length})
+          if (whereColumnValue === cellValue) {
+            // assign this page number
+            const id = cell.cellPayload.recordValuesFriendly['rowId']
+            const leftChild = cell.cellHeader.leftChildPointer;
+            pagesToTraverse.push(leftChild)
+            rowIdsInDataTable.push(id)
+            // break
+          } else if (whereColumnValue < cellValue) {
+            // save the next page number
+            // pageToOperateNumber = cell.cellHeader.leftChildPointer;
+            const leftChild = cell.cellHeader.leftChildPointer;
+            pagesToTraverse.push(leftChild)
+            break; 
+          }
+          i++
+        }
+        
+        if (i === cells.length) {
+          // get the right most page
+          const nextPage = pageToOperate.pageHeader.rightMostPointer;
+          pagesToTraverse.push(nextPage)
+        } 
+      } else {
+        const cells = pageToOperate.cells;
+        const cellLength = cells.length;
+        cells.forEach((cell, index) => {
+          const cellValue = cell.cellPayload.recordValuesFriendly[whereColumnName]
+          logger.info({key: 'leaf page', cellValue, index, cellLength})
+          if (cellValue === whereColumnValue) {
+            const id = cell.cellPayload.recordValuesFriendly['rowId']
+            rowIdsInDataTable.push(id)
+          }
+        })
+        isLeafPageReached = true;
+      }
+    }
+
+    logger.info("Reading from the index finished")
+    logger.info({
+      pageToOperateNumber,
+      rowIdsInDataTable,
+      columns,
+      whereColumnName,
+      whereColumnValue,
+      pagesToTraverse
+    })
+
+    // Go to that page number and read that page
+
+    // Get the date from that page
   }
 
   /* 
@@ -241,7 +400,7 @@ export default class DBimpl {
     pagesToTraverse.push(rootPageNumber);
 
     while (pagesToTraverse.length !== 0) {
-      logger.info(`pages to traverse before starting while loop execution ${pagesToTraverse}`);
+      // logger.info(`pages to traverse before starting while loop execution ${pagesToTraverse}`);
 
       /* 
         get the first element from the pages to read
@@ -252,9 +411,9 @@ export default class DBimpl {
       await this.#databaseFile.seek(pageOffset);
       const page = await this.#parsePage(columns, pageOffset);
 
-      logger.info({
-        readDataFromMultiplePage: page,
-      });
+      // logger.info({
+      //   readDataFromMultiplePage: page,
+      // });
 
       /* 
         IF page type is interior, we will all the children pages pointers and
@@ -276,50 +435,54 @@ export default class DBimpl {
     return dataCells;
   }
 
-  /* TODO: delete  */
-  async getPage(tableName) {
-    await this.#initializeDbFile();
-    const firstPage = await this.getDBFirstPage();
-    logger.info({ firstPage, tableName });
+  // /* TODO: delete  */
+  // async getPage(tableName) {
+  //   await this.#initializeDbFile();
+  //   const firstPage = await this.getDBFirstPage();
+  //   logger.info({ firstPage, tableName });
 
-    const tableInfoRow = firstPage.cells.find((cell) => cell.cellPayload.recordValuesFriendly.tbl_name === tableName);
-    logger.info({ tableInfoRow });
+  //   const tableInfoRow = firstPage.cells.find((cell) => {
+  //     const schemaTableName = cell.cellPayload.recordValuesFriendly.name;
+  //     const schemaType = cell.cellPayload.recordValuesFriendly.type;
+  //     return schemaTableName === tableName && schemaType === SCHEMA_TYPE.TABLE;
+  //   });
+  //   logger.info({ tableInfoRow });
 
-    // if no table is found
-    if (!tableInfoRow) {
-      return new Error("No table found");
-    }
+  //   // if no table is found
+  //   if (!tableInfoRow) {
+  //     return new Error("No table found");
+  //   }
 
-    const tableRootPage = tableInfoRow.cellPayload.recordValuesFriendly.rootpage;
-    const sql = tableInfoRow.cellPayload.recordValuesFriendly.sql;
+  //   const tableRootPage = tableInfoRow.cellPayload.recordValuesFriendly.rootpage;
+  //   const sql = tableInfoRow.cellPayload.recordValuesFriendly.sql;
 
-    // Flaky logic to calculate number of columns in a table
-    // const splittedStr = sql.split(',');
-    // const numberOfColumns = splittedStr.length
-    const columns = getColumnNames(sql);
-    const numberOfColumns = columns.length;
-    logger.info({ columns, numberOfColumns, sql });
+  //   // Flaky logic to calculate number of columns in a table
+  //   // const splittedStr = sql.split(',');
+  //   // const numberOfColumns = splittedStr.length
+  //   const columns = getColumnNames(sql);
+  //   const numberOfColumns = columns.length;
+  //   logger.info({ columns, numberOfColumns, sql });
 
-    const pageSize = firstPage.dbHeader.dbPageSize;
+  //   const pageSize = firstPage.dbHeader.dbPageSize;
 
-    const offset = pageSize * (tableRootPage - 1);
+  //   const offset = pageSize * (tableRootPage - 1);
 
-    logger.info({
-      tableRootPage,
-      pageSize,
-      sql,
-      tableName,
-      numberOfColumns,
-      columns,
-    });
+  //   logger.info({
+  //     tableRootPage,
+  //     pageSize,
+  //     sql,
+  //     tableName,
+  //     numberOfColumns,
+  //     columns,
+  //   });
 
-    await this.#databaseFile.seek(offset);
+  //   await this.#databaseFile.seek(offset);
 
-    const page = await this.#parsePage(columns, offset);
+  //   const page = await this.#parsePage(columns, offset);
 
-    logger.info({
-      page,
-    });
-    return page;
-  }
+  //   logger.info({
+  //     page,
+  //   });
+  //   return page;
+  // }
 }
