@@ -93,10 +93,6 @@ if (command === ".dbinfo") {
       tableName: table, rowIds
     })
 
-    // logger.info({
-    //   rowIds, data
-    // })
-
     tableDataCells = data
   } else {
     /* 
