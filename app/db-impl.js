@@ -100,11 +100,11 @@ export default class DBimpl {
   }
 
   async #parsePage(columns, pointerOffset) {
-    logger.info({
-      key: 'Parsing page',
-      columns,
-      pointerOffset
-    })
+    // logger.info({
+    //   key: 'Parsing page',
+    //   columns,
+    //   pointerOffset
+    // })
     await this.#initializeDbFile();
     const numberOfColumns = columns.length;
     const databaseFile = this.#databaseFile;
@@ -282,11 +282,11 @@ export default class DBimpl {
   }
 
   async readDataUsingIndex({rootPageNumber, whereColumnName, whereColumnValue}) {
-    logger.info({
-      rootPageNumber,
-      whereColumnName,
-      whereColumnValue
-    })
+    // logger.info({
+    //   rootPageNumber,
+    //   whereColumnName,
+    //   whereColumnValue
+    // })
     await this.#initializeDbFile();
     const firstPage = await this.getDBFirstPage();
     
@@ -302,8 +302,8 @@ export default class DBimpl {
 
     // let rowIdInDataTable = null
     let rowIdsInDataTable = [];
-    let pageToOperateNumber = rootPageNumber
-    let isLeafPageReached = false;
+    // let pageToOperateNumber = rootPageNumber
+    // let isLeafPageReached = false;
     const pagesToTraverse = []
     pagesToTraverse.push(rootPageNumber);
     while (pagesToTraverse.length > 0) {
@@ -312,15 +312,15 @@ export default class DBimpl {
       // Get the page number from the index
       await this.#databaseFile.seek(pageOffset);
       let pageToOperate = await this.#parsePage(columns, pageOffset)
-      logger.info({
-        key: 'In the while loop',
-        pageToOperateNumber,
-        rowIdsInDataTable,
-        pageToOperate,
-        whereColumnValue,
-        pagesToTraverse,
-        pageType: getPageTypeFriendly(pageToOperate.pageHeader.pageType)
-      })
+      // logger.info({
+      //   key: 'In the while loop',
+      //   pageToOperateNumber,
+      //   rowIdsInDataTable,
+      //   pageToOperate,
+      //   whereColumnValue,
+      //   pagesToTraverse,
+      //   pageType: getPageTypeFriendly(pageToOperate.pageHeader.pageType)
+      // })
       const pageType = pageToOperate.pageHeader.pageType;
       
       // If page is interior page
@@ -332,10 +332,10 @@ export default class DBimpl {
         while (i < cells.length) {
           const cell = cells[i]
           const cellValue = cell.cellPayload.recordValuesFriendly[whereColumnName]
-          logger.info({key: 'interior page', cellValue, i, length: cells.length})
+          // logger.info({key: 'interior page', cellValue, i, length: cells.length})
           if (whereColumnValue === cellValue) {
             // assign this page number
-            const id = cell.cellPayload.recordValuesFriendly['rowId']
+            const id = cell.cellPayload.recordValuesFriendly['rowID']
             const leftChild = cell.cellHeader.leftChildPointer;
             pagesToTraverse.push(leftChild)
             rowIdsInDataTable.push(id)
@@ -360,29 +360,111 @@ export default class DBimpl {
         const cellLength = cells.length;
         cells.forEach((cell, index) => {
           const cellValue = cell.cellPayload.recordValuesFriendly[whereColumnName]
-          logger.info({key: 'leaf page', cellValue, index, cellLength})
+          // logger.info({key: 'leaf page', cellValue, index, cellLength})
           if (cellValue === whereColumnValue) {
-            const id = cell.cellPayload.recordValuesFriendly['rowId']
+            const id = cell.cellPayload.recordValuesFriendly['rowID']
             rowIdsInDataTable.push(id)
           }
         })
-        isLeafPageReached = true;
+        // isLeafPageReached = true;
       }
     }
 
-    logger.info("Reading from the index finished")
-    logger.info({
-      pageToOperateNumber,
-      rowIdsInDataTable,
-      columns,
-      whereColumnName,
-      whereColumnValue,
-      pagesToTraverse
-    })
+    // logger.info("Reading from the index finished")
+    // logger.info({
+    //   pageToOperateNumber,
+    //   rowIdsInDataTable,
+    //   columns,
+    //   whereColumnName,
+    //   whereColumnValue,
+    //   pagesToTraverse
+    // })
 
     // Go to that page number and read that page
 
+   return rowIdsInDataTable;
     // Get the date from that page
+  }
+
+  async readFromTableBasedUsingPointers({ tableName, rowIds }) {
+    await this.#initializeDbFile();
+    const firstPage = await this.getDBFirstPage();
+    const pageSize = firstPage.dbHeader.dbPageSize;
+    const tableInfoRow = firstPage.cells.find((cell) => cell.cellPayload.recordValuesFriendly.name === tableName);
+
+    // if no table is found
+    if (!tableInfoRow) {
+      return new Error("No table found");
+    }
+
+    const sql = tableInfoRow.cellPayload.recordValuesFriendly.sql;
+    const columns = getColumnNames(sql);
+
+    const data = []
+
+    for (let k = 0; k < rowIds.length; k++) {
+      const rowId = rowIds[k]
+
+      const tableRootPage = tableInfoRow.cellPayload.recordValuesFriendly.rootpage;
+
+      let pagesToTraverse = [tableRootPage]
+      
+      while (pagesToTraverse.length > 0) {
+        const nextPage = pagesToTraverse.pop()
+        const pageOffset = pageSize * (nextPage - 1);
+        // Get the page number from the index
+
+        await this.#databaseFile.seek(pageOffset);
+        const pageToOperate = await this.#parsePage(columns, pageOffset) 
+        const pageType = pageToOperate.pageHeader.pageType;
+
+        // logger.info({
+        //   key: 'in the while loop',
+        //   pageType, pageType,
+        //   nextPage,
+        // })
+        
+        if (pageType === BTREE_PAGE_TYPES.INTERIOR_TABLE_PAGE_TYPE) {
+          const cells = pageToOperate.cells;
+          for (let i = 0; i < cells.length; i++) {
+            const cell = cells[i]
+            // logger.info({
+            //   key: 'readFromTable interior',
+            //   rowId,
+            //   cell,
+            //   pageOffset,
+            // })
+            if (rowId <= cell.rowID) {
+              pagesToTraverse.push(cell.leftChildPointer)
+              break;
+            }
+
+            if (i === cells.length - 1) {
+              const nextPage = pageToOperate.pageHeader.rightMostPointer;
+              pagesToTraverse.push(nextPage)
+            }
+          }          
+        } else if (pageType === BTREE_PAGE_TYPES.LEAF_TABLE_PAGE_TYPE) {
+          const cells = pageToOperate.cells;
+          
+          for (let i = 0; i < cells.length; i++) {
+            const cell = cells[i]
+            // logger.info({
+            //   key: 'readFromTable leaf',
+            //   rowId,
+            //   cell,
+            //   pageOffset
+            // })
+            if (rowId === cell.cellHeader.rowID) {
+              data.push(cell)
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    return data
   }
 
   /* 

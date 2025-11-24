@@ -112,10 +112,10 @@ export default async function readCell({
 
     const { recordValues: record } = recordData;
 
-    logger.info({
-      record,
-      pageType: getPageTypeFriendly(pageType)
-    })
+    // logger.info({
+    //   record,
+    //   pageType: getPageTypeFriendly(pageType)
+    // })
 
     // Index cell payload also contains the 
     // rowID along with the column being index
@@ -126,7 +126,7 @@ export default async function readCell({
       return acc;
     }, {});
     // Last value is rowID
-    sqlSchemaRowFriendly['rowId'] = record[record.length - 1]
+    sqlSchemaRowFriendly['rowID'] = record[record.length - 1]
 
     const cell = {
       cellPointer,

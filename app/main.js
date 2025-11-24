@@ -76,8 +76,9 @@ if (command === ".dbinfo") {
 
   const indexInfo = await dbImpl.getIndexRootPage(table, whereColumnName)
 
+  let tableDataCells = []
 
-  if(indexInfo) {
+  if (indexInfo) {
     // read data using index
     const { indexedColumnName, rootPage } = indexInfo
 
@@ -85,20 +86,29 @@ if (command === ".dbinfo") {
       indexInfo
     })
     
-    const data = await dbImpl.readDataUsingIndex({rootPageNumber: rootPage, whereColumnName: indexedColumnName, 
+    const rowIds = await dbImpl.readDataUsingIndex({rootPageNumber: rootPage, whereColumnName: indexedColumnName, 
       whereColumnValue})
     
-    
-    return;
+    const data = await dbImpl.readFromTableBasedUsingPointers({
+      tableName: table, rowIds
+    })
+
+    // logger.info({
+    //   rowIds, data
+    // })
+
+    tableDataCells = data
+  } else {
+    /* 
+      Get the page based on table name
+      This will go to the schema table which stores the
+      the root pages of all the tables in the DB.
+      This fetches all the pages and read the db
+    */
+    tableDataCells = await dbImpl.readTable(table);
   }
 
-  /* 
-    Get the page based on table name
-    This will go to the schema table which stores the
-    the root pages of all the tables in the DB.
-    This fetches all the pages and read the db
-  */
-  const tableDataCells = await dbImpl.readTable(table);
+
 
   logger.info({
     table,

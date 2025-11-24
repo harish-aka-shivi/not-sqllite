@@ -4,7 +4,7 @@ const logger = pino({
   transport: {
     target: "pino-pretty",
   },
-  enabled: true,
+  enabled: false,
 });
 
 // // Mock logger
