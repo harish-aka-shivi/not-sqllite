@@ -31,9 +31,9 @@ if (command === ".dbinfo") {
   const tableName = tokenizedArr[tokenizedArr.length - 1];
 
   const dbImpl = DBimpl.getInstance(databaseFilePath);
-  const page = await dbImpl.readTable(tableName);
+  const page = await dbImpl.getPage(tableName);
 
-  logger.info(page);
+  logger.info({page});
 
   console.log(page.pageHeader.numberOfCells);
 } else if (command.toLowerCase().includes("select")) {

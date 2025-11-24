@@ -1,10 +1,10 @@
-// import pino from "pino";
+import pino from "pino";
 
 // const logger = pino({
 //   transport: {
 //     target: "pino-pretty",
 //   },
-//   enabled: false,
+//   enabled: true,
 // });
 
 // // Mock logger

@@ -223,10 +223,6 @@ export default class DBimpl {
     //   columns,
     // });
 
-    // check if index is present, we don't need to read from the multiple pages
-    // we can bypass all the force of all the pages that we implemented earlier
-    // instead we can use the index to find the relevant value
-
     const dataCells = await this.readDataFromMultiplePages(tableRootPage, columns, pageSize);
     // logger.info({
     //   dataCells,
@@ -517,54 +513,53 @@ export default class DBimpl {
     return dataCells;
   }
 
-  // /* TODO: delete  */
-  // async getPage(tableName) {
-  //   await this.#initializeDbFile();
-  //   const firstPage = await this.getDBFirstPage();
-  //   logger.info({ firstPage, tableName });
+  async getPage(tableName) {
+    await this.#initializeDbFile();
+    const firstPage = await this.getDBFirstPage();
+    logger.info({ firstPage, tableName });
 
-  //   const tableInfoRow = firstPage.cells.find((cell) => {
-  //     const schemaTableName = cell.cellPayload.recordValuesFriendly.name;
-  //     const schemaType = cell.cellPayload.recordValuesFriendly.type;
-  //     return schemaTableName === tableName && schemaType === SCHEMA_TYPE.TABLE;
-  //   });
-  //   logger.info({ tableInfoRow });
+    const tableInfoRow = firstPage.cells.find((cell) => {
+      const schemaTableName = cell.cellPayload.recordValuesFriendly.name;
+      const schemaType = cell.cellPayload.recordValuesFriendly.type;
+      return schemaTableName === tableName && schemaType === SCHEMA_TYPE.TABLE;
+    });
+    logger.info({ tableInfoRow });
 
-  //   // if no table is found
-  //   if (!tableInfoRow) {
-  //     return new Error("No table found");
-  //   }
+    // if no table is found
+    if (!tableInfoRow) {
+      return new Error("No table found");
+    }
 
-  //   const tableRootPage = tableInfoRow.cellPayload.recordValuesFriendly.rootpage;
-  //   const sql = tableInfoRow.cellPayload.recordValuesFriendly.sql;
+    const tableRootPage = tableInfoRow.cellPayload.recordValuesFriendly.rootpage;
+    const sql = tableInfoRow.cellPayload.recordValuesFriendly.sql;
 
-  //   // Flaky logic to calculate number of columns in a table
-  //   // const splittedStr = sql.split(',');
-  //   // const numberOfColumns = splittedStr.length
-  //   const columns = getColumnNames(sql);
-  //   const numberOfColumns = columns.length;
-  //   logger.info({ columns, numberOfColumns, sql });
+    // Flaky logic to calculate number of columns in a table
+    // const splittedStr = sql.split(',');
+    // const numberOfColumns = splittedStr.length
+    const columns = getColumnNames(sql);
+    const numberOfColumns = columns.length;
+    logger.info({ columns, numberOfColumns, sql });
 
-  //   const pageSize = firstPage.dbHeader.dbPageSize;
+    const pageSize = firstPage.dbHeader.dbPageSize;
 
-  //   const offset = pageSize * (tableRootPage - 1);
+    const offset = pageSize * (tableRootPage - 1);
 
-  //   logger.info({
-  //     tableRootPage,
-  //     pageSize,
-  //     sql,
-  //     tableName,
-  //     numberOfColumns,
-  //     columns,
-  //   });
+    logger.info({
+      tableRootPage,
+      pageSize,
+      sql,
+      tableName,
+      numberOfColumns,
+      columns,
+    });
 
-  //   await this.#databaseFile.seek(offset);
+    await this.#databaseFile.seek(offset);
 
-  //   const page = await this.#parsePage(columns, offset);
+    const page = await this.#parsePage(columns, offset);
 
-  //   logger.info({
-  //     page,
-  //   });
-  //   return page;
-  // }
+    logger.info({
+      page,
+    });
+    return page;
+  }
 }
