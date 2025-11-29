@@ -7,3 +7,5 @@ echo "Downloading companies.db: ~7MB (used in stage 8)"
 curl -Lo companies.db https://raw.githubusercontent.com/codecrafters-io/sample-sqlite-databases/master/companies.db
 
 echo "Sample databases downloaded."
+
+
